@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <title>SHACL with Blockly</title>
+    <link rel="icon" href="chair.ico" type="image/x-icon" />
+    <link rel="shortcut icon" href="chair.ico" type="image/x-icon" />
+
+    <!-- Stylesheet links -->
+    <link rel="stylesheet" href="css/blockly-style.css">
+    <link rel="stylesheet" href="css/calibri.css">
+
+    <!-- blockly block files -->
+    <script src="js/blockly_compressed.js"></script>
+    <script src="js/blocks_compressed.js"></script>
+    <script src="js/msg/messages.js"></script>
+    <script src="js/msg/js/en.js"></script>
+
+    <!-- blockly code interpreter files -->
+    <script src="js/acorn_interpreter.js"></script>
+    <script src="js/javascript_compressed.js"></script>
+
+    <!-- JavaScript custom blockly blocks -->
+    <script src="allmyblocks.js"></script>
+    <script src="allmygenerators.js"></script>
+  </head>
+  
+  <body>
+  
+    <!-- UX Header section -->
+    <div id="header" align="center">
+      <div style="float: left; width: 20%; color: #1c57bd">.</div>
+      <div style="float: left; text-align: right;">
+        <img id="chair" src="mediachair.PNG" width="100" height="20">
+      </div>
+      <div style="float: left; text-align: left;">
+        <h1 style="font-size: 200%">SHACL Constraints Creator</h1>
+      </div>
+    </div>
+
+    <!-- Blockly section -->
+    <div id="container">
+      <div id="blocklyDiv" style="height: 80%; width: 100%;"></div>
+      
+      <xml id="toolbox" style="display: none">
+        <category name="1. Ontology" colour="180">
+          <block type='ontology_block'></block>
+        </category>
+        <category name="2. Property" colour="330">
+          <block type='property_block'></block>
+        </category>
+        <category name="3. Constraints" colour="230">
+          <block type='cardinality_type'></block>
+          <block type='datarange_type'></block>
+        </category>
+        <category name="4. Messages" colour="130">
+          <block type='message_type'></block>
+        </category>
+        <category name = "SPARQL" colour = "195">
+          <block type="sparql_type"></block>
+          <block type="sparqlbasic_type"></block>
+          <block type="sparqlquery_type"></block>
+          <block type="sparqlquery2_type"></block>
+          <block type="sparqlfilter_type"></block>
+        </category>
+      </xml>
+
+      <script>
+        var workspace = Blockly.inject('blocklyDiv',
+          {
+            media: 'media/',
+            toolbox: document.getElementById('toolbox'),
+            /*
+            grid: {
+              spacing: 20,
+              length: 3,
+              colour: '#ccc',
+              snap: true
+            },
+            trashcan: true,
+            maxBlocks: 10*/
+          });
+        /* full list of options: https://developers.google.com/blockly/guides/get-started/web */
+
+        // Blockly interpreter section
+        var myInterpreter = null;
+
+        function initApi(interpreter, scope) {
+          // Add an API function for the alert() block.
+          var wrapper = function(text) {
+            text = text ? text.toString() : '';
+            return interpreter.createPrimitive(alert(text));
+          };
+          interpreter.setProperty(scope, 'alert',
+                  interpreter.createNativeFunction(wrapper));
+
+          // Add an API function for the prompt() block.
+          var wrapper = function(text) {
+            text = text ? text.toString() : '';
+            return interpreter.createPrimitive(prompt(text));
+          };
+          interpreter.setProperty(scope, 'prompt',
+                  interpreter.createNativeFunction(wrapper));
+
+          // Add an API function for highlighting blocks.
+          var wrapper = function(id) {
+            id = id ? id.toString() : '';
+            return interpreter.createPrimitive(highlightBlock(id));
+          };
+          interpreter.setProperty(scope, 'highlightBlock',
+                  interpreter.createNativeFunction(wrapper));
+        }
+
+        var highlightPause = false;
+
+        function highlightBlock(id) {
+          workspace.highlightBlock(id);
+          highlightPause = true;
+        }
+
+        function parseCode() {
+          // Generate JavaScript code and parse it.
+          //Blockly.JavaScript.STATEMENT_PREFIX = 'highlightBlock(%1);\n';
+          //Blockly.JavaScript.addReservedWords('highlightBlock');
+          var code = Blockly.JavaScript.workspaceToCode(workspace);
+          var hiddenElement = document.createElement ('a');
+
+          let namespace="";
+          let x=code.search("BOT:");
+
+          if (x!=-1){
+            namespace="@prefix bot:   <https://w3id.org/bot#> .\n"
+          }
+
+          const fs = require('fs');
+          fs.appendFile
+
+          var code1=namespace+code
+          hiddenElement.href = 'data:attachment/text,' + encodeURI(code1);
+          hiddenElement.target='_blank';
+          hiddenElement.download = 'myFile.txt';
+          hiddenElement.click();
+
+          myInterpreter = new Interpreter(code, initApi);
+
+          document.getElementById('stepButton').disabled = '';
+          highlightPause = false;
+          workspace.traceOn(true);
+          //workspace.highlightBlock(null);
+          stepCode();
+        }
+
+        function stepCode() {
+          try {
+            var ok = myInterpreter.step();
+          } finally {
+            if (!ok) {
+              // Program complete, no more code to execute.
+              document.getElementById('stepButton').disabled = 'disabled';
+              return;
+            }
+          }
+          if (highlightPause) {
+            // A block has been highlighted.  Pause execution here.
+            highlightPause = false;
+          } else {
+            // Keep executing until a highlight statement is reached.
+            stepCode();
+          }
+        }
+
+        function discard(workspace) {
+          var count = workspace.getAllBlocks().length;
+          if (count < 2 ||
+                  window.confirm(Blockly.Msg.DELETE_ALL_BLOCKS.replace('%1', count))) {
+            workspace.clear();
+            if (window.location.hash) {
+              window.location.hash = '';
+            }
+          }
+
+          function stop(workspace){
+            document.getElementById('stepButton').disabled = 'disabled';
+            workspace.highlightBlock(null);
+            workspace.traceOn(false);
+            myInterpreter.stopBlockIncrementing_();
+            myInterpreter.stop();
+          }
+        }
+      </script>
+      <!-- UX buttons for blockly interaction -->
+      <button id="runButton" class="notext play" title="Run the program." onclick="parseCode()">
+        <img src="media/1x1.gif" class="run icon21">
+      </button>
+      <button id="stepButton" class="notext" disabled="disabled" title="Run the program." onclick="stepCode()">
+        <img src="media/1x1.gif" class="step icon21">
+      </button>
+      <button id="trashButton" class="notext trash" title="Discard all blocks." onclick="discard(workspace)">
+        <img src="media/1x1.gif" class="trash icon21">
+      </button>
+    </div>
+  </body>
+</html>
